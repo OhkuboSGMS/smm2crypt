@@ -49,23 +49,38 @@ const smm2crypt = (function() {
   const UInt32Val = (a, idx) => ( a[4*idx] | (a[4*idx+1]<<8) | (a[4*idx+2]<<16) | (a[4*idx+3]<<24) ) >>> 0;
 
   const decrypt_course = (data) => {
+    // -0x30 end is offset from end
     const end = data.slice(-0x30);
-    const iv = end.slice(0, 16);
+    const iv = end.slice(0,0x10);
     const rand_state = rand_init([4, 5, 6, 7].map(x => UInt32Val(end, x)));
     const key = new Uint8Array(new Uint32Array( gen_key(course_key_table, rand_state) ).buffer);
 
     // using aesjs
     var aesCbc = new _aesjs.ModeOfOperation.cbc(key, iv);
     var decryptedBytes = aesCbc.decrypt(data.slice(0x10));
-    return decryptedBytes.slice(0, -0x30);
+    return [decryptedBytes.slice(0, -0x30),{end,iv,rand_state,key}];
 
     // using node crypto
     // var decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
     // return decipher.update(data.slice(0x10)).slice(0, -0x20);
   };
+  const encrypt_course =(cryptConfig,data)=>{
+    //符号化情報はbuf[buf.length-0x30:buf.length]にある
+    const end = cryptConfig.end;
+    const iv = cryptConfig.iv;
+    const rand_state = cryptConfig.rand_state;
+    const key = new Uint8Array(new Uint32Array( gen_key(course_key_table, rand_state) ).buffer);
+    const aesCbc = new _aesjs.ModeOfOperation.cbc(key, iv);
+    const encryptedBytes =aesCbc.encrypt(data);
+
+    return encryptedBytes;
+
+  };
+
 
   return {
-    decrypt_course
+    decrypt_course,
+    encrypt_course
   };
 })();
 
