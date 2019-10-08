@@ -48,25 +48,34 @@ const smm2crypt = (function() {
 
   const UInt32Val = (a, idx) => ( a[4*idx] | (a[4*idx+1]<<8) | (a[4*idx+2]<<16) | (a[4*idx+3]<<24) ) >>> 0;
 
-  const decrypt_course = (data) => {
-    const end = data.slice(-0x30);
-    const iv = end.slice(0, 16);
-    const rand_state = rand_init([4, 5, 6, 7].map(x => UInt32Val(end, x)));
-    const key = new Uint8Array(new Uint32Array( gen_key(course_key_table, rand_state) ).buffer);
+    const decrypt_course = (data) => {
+        // -0x30 end is offset from end
+        const end = data.slice(-0x30);
+        const iv = end.slice(0, 0x10);
+        const rand_state = rand_init([4, 5, 6, 7].map(x => UInt32Val(end, x)));
+        const key = new Uint8Array(new Uint32Array(gen_key(course_key_table, rand_state)).buffer);
+        // const cryptoConfig = {
+        //   Data: end,
+        //   IV: iv,
+        //   RandomState: rand_state,
+        //   AES_CMAC_Digest:end.slice(0x20,0x20+16)};
+        const cryptoConfig = end;
 
-    // using aesjs
-    var aesCbc = new _aesjs.ModeOfOperation.cbc(key, iv);
-    var decryptedBytes = aesCbc.decrypt(data.slice(0x10));
-    return decryptedBytes.slice(0, -0x30);
+        const headerBuf = data.slice(0x0, 0x10);
+        // const header ={Data:headerBuf,CRC32:UInt32Val(headerBuf,0x08)};
+        const header = headerBuf;
+        // using aesjs
+        var aesCbc = new _aesjs.ModeOfOperation.cbc(key, iv);
+        var decryptedBytes = aesCbc.decrypt(data.slice(0x10, -0x30));
+        return [header, decryptedBytes, cryptoConfig];
 
-    // using node crypto
-    // var decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
-    // return decipher.update(data.slice(0x10)).slice(0, -0x20);
-  };
-
-  return {
-    decrypt_course
-  };
+        // using node crypto
+        // var decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
+        // return decipher.update(data.slice(0x10)).slice(0, -0x20);
+    };
+    return {
+        decrypt_course,
+    };
 })();
 
-if(typeof module !== "undefined") module.exports = smm2crypt;
+if (typeof module !== "undefined") module.exports = smm2crypt;
